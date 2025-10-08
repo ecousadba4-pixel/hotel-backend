@@ -56,6 +56,8 @@ app.post('/api/guests', async (req, res) => {
       bonus_spent
     } = req.body;
 
+    console.log('📥 Получены данные:', req.body);
+
     // Валидация обязательных полей
     if (!guest_phone || !last_name || !first_name) {
       return res.status(400).json({
@@ -63,6 +65,19 @@ app.post('/api/guests', async (req, res) => {
         message: 'Обязательные поля: номер телефона, фамилия и имя'
       });
     }
+
+    // Парсим дату из формата DD.MM.YYYY
+    let parsedDate = checkin_date;
+    if (checkin_date && checkin_date.includes('.')) {
+      const parts = checkin_date.split('.');
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        // Создаем дату в формате YYYY-MM-DD для PostgreSQL
+        parsedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
+
+    console.log('📅 Преобразованная дата:', parsedDate);
 
     const query = `
       INSERT INTO guests 
@@ -76,12 +91,14 @@ app.post('/api/guests', async (req, res) => {
       guest_phone.replace(/\D/g, '').slice(-10),
       last_name,
       first_name,
-      checkin_date,
+      parsedDate, // Используем преобразованную дату
       loyalty_level,
       shelter_booking_id,
       parseFloat(total_amount) || 0,
       parseInt(bonus_spent) || 0
     ];
+
+    console.log('💾 Данные для INSERT:', values);
 
     const result = await pool.query(query, values);
     
@@ -101,7 +118,7 @@ app.post('/api/guests', async (req, res) => {
   }
 });
 
-// Поиск гостя в VIEW bonuses_balance для автозаполнения формы
+// Поиск гостя в таблице bonuses_balance для автозаполнения формы
 app.get('/api/bonuses/search', async (req, res) => {
   try {
     const { phone } = req.query;
@@ -222,4 +239,5 @@ app.listen(PORT, () => {
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`📍 Bonuses search: http://localhost:${PORT}/api/bonuses/search?phone=79123456789`);
 });
+
 
