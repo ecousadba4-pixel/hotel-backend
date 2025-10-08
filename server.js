@@ -42,7 +42,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Добавление гостя
+// Добавление гостя в таблицу guests
 app.post('/api/guests', async (req, res) => {
   try {
     const {
@@ -66,13 +66,14 @@ app.post('/api/guests', async (req, res) => {
 
     const query = `
       INSERT INTO guests 
-      (guest_phone, last_name, first_name, checkin_date, loyalty_level, shelter_booking_id, total_amount, bonus_spent)
+      (guest_phone, last_name, first_name, checkin_date, loyalty_level, 
+       shelter_booking_id, total_amount, bonus_spent)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
 
     const values = [
-      guest_phone.replace(/\D/g, '').slice(-10), // Оставляем 10 цифр
+      guest_phone.replace(/\D/g, '').slice(-10),
       last_name,
       first_name,
       checkin_date,
@@ -100,40 +101,7 @@ app.post('/api/guests', async (req, res) => {
   }
 });
 
-// Поиск гостя по номеру телефона в таблице guests
-app.get('/api/guests/search', async (req, res) => {
-  try {
-    const { phone } = req.query;
-    
-    if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Не указан номер телефона для поиска'
-      });
-    }
-
-    const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
-    const result = await pool.query(
-      'SELECT * FROM guests WHERE guest_phone = $1 ORDER BY created_at DESC LIMIT 1',
-      [normalizedPhone]
-    );
-
-    res.json({
-      success: true,
-      data: result.rows[0] || null
-    });
-
-  } catch (error) {
-    console.error('Ошибка при поиске гостя:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Ошибка при поиске гостя',
-      error: error.message
-    });
-  }
-});
-
-// 📍 НОВЫЙ РОУТ: Поиск гостя в таблице bonuses_balance (для автозаполнения формы)
+// Поиск гостя в таблице bonuses_balance для автозаполнения формы
 app.get('/api/bonuses/search', async (req, res) => {
   try {
     const { phone } = req.query;
@@ -148,16 +116,16 @@ app.get('/api/bonuses/search', async (req, res) => {
     const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
     const result = await pool.query(
       `SELECT 
-        guest_phone,
+        phone as guest_phone,
         last_name,
         first_name, 
-        loyalty_level,
-        current_balance,
-        visits_count,
-        last_visit_date
+        typing_level as loyalty_level,
+        botan_balances as current_balance,
+        vbits_lead as visits_count,
+        last_date_visit as last_visit_date
        FROM bonuses_balance 
-       WHERE guest_phone = $1 
-       ORDER BY last_visit_date DESC 
+       WHERE phone = $1 
+       ORDER BY last_date_visit DESC 
        LIMIT 1`,
       [normalizedPhone]
     );
@@ -184,7 +152,7 @@ app.get('/api/bonuses/search', async (req, res) => {
   }
 });
 
-// Получение всех гостей (для админки)
+// Получение всех гостей из таблицы guests (для админки)
 app.get('/api/guests', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM guests ORDER BY created_at DESC LIMIT 100');
@@ -206,7 +174,7 @@ app.get('/api/guests', async (req, res) => {
 // Получение всех данных из bonuses_balance (для админки)
 app.get('/api/bonuses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bonuses_balance ORDER BY last_visit_date DESC LIMIT 100');
+    const result = await pool.query('SELECT * FROM bonuses_balance ORDER BY last_date_visit DESC LIMIT 100');
     
     res.json({
       success: true,
@@ -246,3 +214,4 @@ app.listen(PORT, () => {
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`📍 Bonuses search: http://localhost:${PORT}/api/bonuses/search?phone=79123456789`);
 });
+
