@@ -101,10 +101,12 @@ app.post('/api/guests', async (req, res) => {
   }
 });
 
-// Поиск гостя в таблице bonuses_balance для автозаполнения формы
+// Поиск гостя в VIEW bonuses_balance для автозаполнения формы
 app.get('/api/bonuses/search', async (req, res) => {
   try {
     const { phone } = req.query;
+    
+    console.log('🔍 Запрос поиска гостя:', phone);
     
     if (!phone) {
       return res.status(400).json({
@@ -114,14 +116,16 @@ app.get('/api/bonuses/search', async (req, res) => {
     }
 
     const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
+    console.log('📱 Нормализованный номер:', normalizedPhone);
+    
     const result = await pool.query(
       `SELECT 
         phone as guest_phone,
         last_name,
         first_name, 
-        typing_level as loyalty_level,
-        botan_balances as current_balance,
-        vbits_lead as visits_count,
+        loyalty_level,
+        bonus_balances as current_balance,
+        visits_total as visits_count,
         last_date_visit as last_visit_date
        FROM bonuses_balance 
        WHERE phone = $1 
@@ -130,12 +134,16 @@ app.get('/api/bonuses/search', async (req, res) => {
       [normalizedPhone]
     );
 
+    console.log('📊 Результат SQL запроса:', result.rows);
+
     if (result.rows.length > 0) {
+      console.log('✅ Гость найден в базе');
       res.json({
         success: true,
         data: result.rows[0]
       });
     } else {
+      console.log('❌ Гость не найден в базе');
       res.json({
         success: true,
         data: null
