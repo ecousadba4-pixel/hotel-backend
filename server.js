@@ -100,7 +100,7 @@ app.post('/api/guests', async (req, res) => {
   }
 });
 
-// Поиск гостя по номеру телефона
+// Поиск гостя по номеру телефона в таблице guests
 app.get('/api/guests/search', async (req, res) => {
   try {
     const { phone } = req.query;
@@ -133,6 +133,57 @@ app.get('/api/guests/search', async (req, res) => {
   }
 });
 
+// 📍 НОВЫЙ РОУТ: Поиск гостя в таблице bonuses_balance (для автозаполнения формы)
+app.get('/api/bonuses/search', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Не указан номер телефона для поиска'
+      });
+    }
+
+    const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
+    const result = await pool.query(
+      `SELECT 
+        guest_phone,
+        last_name,
+        first_name, 
+        loyalty_level,
+        current_balance,
+        visits_count,
+        last_visit_date
+       FROM bonuses_balance 
+       WHERE guest_phone = $1 
+       ORDER BY last_visit_date DESC 
+       LIMIT 1`,
+      [normalizedPhone]
+    );
+
+    if (result.rows.length > 0) {
+      res.json({
+        success: true,
+        data: result.rows[0]
+      });
+    } else {
+      res.json({
+        success: true,
+        data: null
+      });
+    }
+
+  } catch (error) {
+    console.error('Ошибка при поиске гостя в bonuses_balance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка при поиске гостя',
+      error: error.message
+    });
+  }
+});
+
 // Получение всех гостей (для админки)
 app.get('/api/guests', async (req, res) => {
   try {
@@ -152,8 +203,46 @@ app.get('/api/guests', async (req, res) => {
   }
 });
 
+// Получение всех данных из bonuses_balance (для админки)
+app.get('/api/bonuses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM bonuses_balance ORDER BY last_visit_date DESC LIMIT 100');
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Ошибка при получении данных bonuses_balance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка при получении данных бонусов',
+      error: error.message
+    });
+  }
+});
+
+// Обработка 404
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: '🚫 Маршрут не найден'
+  });
+});
+
+// Обработка ошибок
+app.use((error, req, res, next) => {
+  console.error('Необработанная ошибка:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Внутренняя ошибка сервера',
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  });
+});
+
 // Запуск сервера
 app.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
+  console.log(`📍 Bonuses search: http://localhost:${PORT}/api/bonuses/search?phone=79123456789`);
 });
